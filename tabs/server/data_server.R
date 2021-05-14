@@ -5,31 +5,32 @@ css <- "
 
 dataserver <- function(env_serv) with(env_serv, local({
   
+  observe({
+    updateSelectInput(session, "dt_site",label = "Site:",choices = c(unique(as.character(banana$Location))))
+  })
   
+ 
   datasetInput <- reactive({
     req(input$dataset)
     
     switch(input$dataset, 
-           "Flowering" = dbGetQuery(pool, paste('SELECT * FROM flowering')), # tbl(pool, 'flowering') %>% collect(),
-           "Crosses" = dbGetQuery(pool, paste('SELECT * FROM vw_crosses')), # tbl(pool, 'vw_crosses') %>% collect(),
-           "Plantlets" = dbGetQuery(pool, paste('SELECT * FROM vw_plantlets')), # tbl(pool, 'vw_plantlets') %>% collect(),
-           "Status" = dbGetQuery(pool, paste('SELECT * FROM status')), # status(),
-           #"Contamination" = contamination(),
-           "Subcultures" = dbGetQuery(pool, paste('SELECT * FROM vw_subculture')), # tbl(pool, 'vw_subculture') %>% collect(),
-           "Rooting" = dbGetQuery(pool, paste('SELECT * FROM vw_rooting')), # tbl(pool, 'vw_rooting') %>% collect(),
-           "Weaning 1" = dbGetQuery(pool, paste('SELECT * FROM vw_weaning1')), # tbl(pool, 'vw_weaning1') %>% collect(),
-           "Weaning 2" = dbGetQuery(pool, paste('SELECT * FROM vw_weaning2')), # tbl(pool, 'vw_weaning2') %>% collect(),
-           "Screenhouse" = dbGetQuery(pool, paste('SELECT * FROM vw_screenhouse')), # tbl(pool, 'vw_screenhouse') %>% collect(),
-           "Hardening" = dbGetQuery(pool, paste('SELECT * FROM vw_hardening')), # tbl(pool, 'vw_hardening') %>% collect(),
-           "Open-field" = dbGetQuery(pool, paste('SELECT * FROM vw_openfield')) # tbl(pool, 'vw_openfield') %>% collect()
-        )
+           "Flowering" = flowering(),
+           "Crosses" = banana,# %>% select(-c(`Days in ripening shed`)),
+           "Plantlets" = plantlets(),
+           "Status" = status(),
+           "Contamination" = contamination(),
+           "Subcultures" = subcultures(),
+           "Rooting" = rooting(),
+           "Weaning 1" = weaning1(),
+           "Weaning 2" = weaning2(),
+           "Screenhouse" = screenhouse(),
+           "Hardening" = hardening(),
+           "Open-field" = openfield())
   })
+  
  
   output$structureOUT <- renderUI({
-    result = datasetInput() %>%
-    rename_all(~ str_replace_all(., "([a-z])([A-Z])", "\\1 \\2"))
-    
-    colnames(result) <- capitalize(names(result))
+    result = datasetInput()
     result = janitor::remove_empty(result, "cols")
     
     div(
@@ -62,30 +63,15 @@ dataserver <- function(env_serv) with(env_serv, local({
     )
   })
   
-  observeEvent(input$data_show3,{
-    
-    shinyjs::hide("data_show_id3")
-    
-      output$dataStr <- renderPrint({
-        result = datasetInput()%>%
-          rename_all(~ str_replace_all(., "([a-z])([A-Z])", "\\1 \\2"))
-        colnames(result) <- capitalize(names(result))
-        
-        str(result)
-      })
+  output$dataStr <- renderPrint({
+    result = datasetInput()
+    str(result)
   })
   
   # Data Table TAB
-
-  observeEvent(input$data_show1,{
-    
-    shinyjs::hide("data_show_id1")
-    
+  ##################################################
   viewInput <- reactive({
-    result = data.frame(datasetInput())%>%
-      rename_all(~ str_replace_all(., "([a-z])([A-Z])", "\\1 \\2"))
-    colnames(result) <- capitalize(names(result))
-    
+    result = data.frame(datasetInput())
     columns = colnames(result)
     columns = input$showVars
     if(input$dataset=='Crosses'){
@@ -101,12 +87,9 @@ dataserver <- function(env_serv) with(env_serv, local({
     
     result <-  result %>%
       janitor::remove_empty("cols") %>%
-      dplyr::filter(!is.na(location))
+      dplyr::filter(!is.na(Location))
     colnames(result) = gsub("[.]"," ", names(result))
-    
-    result[result == '1900-01-01'] <- NA
-    result$Location <- as.factor(result$Location)
-    
+    colnames(result) = gsub("_"," ", names(result))
     return(result)
   })
   output$viewdt <- renderDT({
@@ -124,10 +107,7 @@ dataserver <- function(env_serv) with(env_serv, local({
   
   
   downloadView <- reactive({
-    result = data.frame(datasetInput())%>%
-      rename_all(~ str_replace_all(., "([a-z])([A-Z])", "\\1 \\2"))
-    colnames(result) <- capitalize(names(result))
-    
+    result = data.frame(datasetInput())
     columns = colnames(result)
     columns = input$showVars
     if(input$dataset=='Crosses'){
@@ -153,84 +133,82 @@ dataserver <- function(env_serv) with(env_serv, local({
     colnames(result) = gsub("[.]"," ", names(result))
     result = result %>%
       janitor::remove_empty("cols") %>%
-      dplyr::filter(!is.na(location))
+      dplyr::filter(!is.na(Location))
     return(result)
   })
   output$downloadTbl <- downloadHandler(
     filename = function(){paste(input$dataset,'-', Sys.time(), '.csv')},
     content = function(file) {
-      write.csv(downloadView(), file, row.names = FALSE) 
+      write.csv(downloadView(), file, row.names = FALSE) #datasetInput
     }
   )
-  })
-  
+  ##################################################
   # Summaries
   
-  observeEvent(input$data_show2,{ 
+  summaryIn <- reactive({
+    result = banana %>%
+      dplyr::select(Location, Crossnumber,FemaleGenotype,FemalePlotName, MaleGenotype,FemalePloidy,MalePloidy,
+                    `First Pollination Date`,`Bunch Harvest Date`,
+                    `Total Seeds`, `Good Seeds`,`Number of Embryo Rescued`,`Number of Embryo Germinating`) %>%
+      dplyr::filter(FemaleGenotype !='' & MaleGenotype !='') 
     
-    shinyjs::hide("data_show_id2")
-               
-      summaryIn <- reactive({
-        result <- tbl(pool, 'vw_crosses') %>% 
-          collect() %>%
-          dplyr::rename(Location = location,
-                        FemaleGenotype = femaleGenotype,
-                        MaleGenotype = maleGenotype)
-        
-        result$Year_of_Pollination = as.integer(lubridate::year(result$pollinationDate))
-        result$Month_of_Pollination = month.abb[lubridate::month(result$pollinationDate)]
-        
-        if(length(input$groupby)>0){
-          result <- result %>% 
-            dplyr::group_by(.dots = input$groupby)
-        } else{
-          result = result %>% 
-            dplyr::group_by(crossID)
-        }
-        
-        result <- result %>% 
-          dplyr::summarise(`Number of Crosses`=n(),
-                           #Bunches = sum(Bunches), 
-                           `Total Seeds`=sum(na.omit(as.integer(totalSeeds))),
-                           `Number of Embryo Rescued`= sum(na.omit(as.integer(numberRescued))),
-                           `Number of Embryo Germinating`= sum(na.omit(as.integer(numberGerminating)))
-                           ) %>%
-          ungroup()
-      })
-      
-      output$summaryDT <- renderDT({
-        
-        DT::datatable(summaryIn(), 
-                      filter = 'top', 
-                      rownames = FALSE, 
-                      escape = FALSE, 
-                      options = list(pageLength = 10,
-                                     lengthMenu = c(10, 50, 100, 500,1000),
-                                     searchHighlight=T, 
-                                     stateSave = TRUE)
-                      )
-        
-      })
-      
-      
-      summaryDownload <- reactive({
-        result = summaryIn()
-        
-        if(!is.null(input$summaryDT_rows_selected)){
-          result = result[input$summaryDT_rows_selected,]
-        }
-        
-        result = janitor::remove_empty(result, "cols")
-        result = result[complete.cases(result[,1]),]
-        return(result)
-        
-      })
-      
-      output$downloadSummary <- downloadHandler(
-        filename = function(){paste0('SummaryTable-',input$summaryDateRange[1], '-',input$summaryDateRange[2],'.csv')},
-        content = function(file) {
-          write.csv(summaryDownload(), file, row.names = FALSE)
-        }
-      )
+    result$Bunches = ifelse(!is.na(result$`Bunch Harvest Date`), 1,0)
+    result$`Bunch Harvest Date` = NULL
+    result$`Year_of_Pollination` = as.integer(lubridate::year(result$`First Pollination Date`))
+    result$`Month_of_Pollination` = month.abb[lubridate::month(result$`First Pollination Date`)]
+    
+    if(length(input$groupby)>0){
+      result = result %>% 
+        dplyr::group_by(.dots = input$groupby)
+    } else{
+      result = result %>% 
+        dplyr::group_by(Crossnumber)
+    }
+    
+    result = result %>% 
+      dplyr::summarise(`Number of Crosses`=n(),
+                       Bunches = sum(Bunches), 
+                       `Total Seeds`=sum(na.omit(as.integer(`Total Seeds`))),
+                       `Good Seeds` = sum(na.omit(as.integer(`Good Seeds`))),
+                       `Number of Embryo Rescued`= sum(na.omit(as.integer(`Number of Embryo Rescued`))),
+                       `Number of Embryo Germinating`= sum(na.omit(as.integer(`Number of Embryo Germinating`)))
+                       , .groups = 'drop') %>%
+      ungroup()
   })
+  
+  output$summaryDT <- renderDT({
+    
+    DT::datatable(summaryIn(), 
+                  filter = 'top', 
+                  rownames = FALSE, 
+                  escape = FALSE, 
+                  options = list(pageLength = 10,
+                                 lengthMenu = c(10, 50, 100, 500,1000),
+                                 searchHighlight=T, 
+                                 stateSave = TRUE)
+                  )
+    
+  })
+  
+  
+  summaryDownload <- reactive({
+    result = summaryIn()
+    
+    if(!is.null(input$summaryDT_rows_selected)){
+      result = result[input$summaryDT_rows_selected,]
+    }
+    
+    result = janitor::remove_empty(result, "cols")
+    result = result[complete.cases(result[,1]),]
+    return(result)
+    
+  })
+  
+  output$downloadSummary <- downloadHandler(
+    filename = function(){paste0('BTracT Summary-',input$summaryDateRange[1], '-',input$summaryDateRange[2],'.csv')},
+    content = function(file) {
+      write.csv(summaryDownload(), file, row.names = FALSE) #datasetInput
+    }
+  )
+  
 }))

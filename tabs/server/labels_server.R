@@ -1,20 +1,11 @@
 
 labels_server <- function(env_serv) with(env_serv, local({
   
-  
-  observeEvent(input$label_show2, {
-    
-    shinyjs::hide("label_show_id2")
-  
   # only today's data should be displayed
-  labelsIn <- tbl(pool, 'firstPollination') %>% 
-    collect() %>%
-    dplyr::select(location, everything()) %>%
-    rename_all(~ str_replace_all(., "([a-z])([A-Z])", "\\1 \\2"))
   
   output$downloadlabelsDT <- renderDT({
-    dt <- labelsIn
-    colnames(dt) <- capitalize(names(dt))
+    dt <- banana %>%
+      dplyr::select(Location,Crossnumber,FemalePlotName,Mother,MalePlotName,Father,`First Pollination Date`)# %>%
     
     DT::datatable(dt, filter = 'top', rownames = FALSE, escape = FALSE, 
                   options = list(pageLength = 5, lengthMenu = c(5, 10, 50, 100, 500,1000),
@@ -23,8 +14,8 @@ labels_server <- function(env_serv) with(env_serv, local({
   
     
     downloadlabelsIn <- reactive({
-      result <- labelsIn
-      colnames(result) <- capitalize(names(result))
+      result = banana %>%
+        dplyr::select(Location,Crossnumber,FemalePlotName,Mother,MalePlotName,Father,`First Pollination Date`)
       
       if(!is.null(input$downloadlabelsDT_rows_selected)){
         result = result[input$downloadlabelsDT_rows_selected,]
@@ -34,7 +25,12 @@ labels_server <- function(env_serv) with(env_serv, local({
     
    
     # download labels
-   
+    # observeEvent(input$downloadlabels,{
+    #   custom_create_PDF(user = FALSE, Labels = banana$Crossnumber, 
+    #                     # alt_text = as.character(downloadlabelsIn()[,2]), 
+    #                     name ="BarcodeLabels",
+    #                     type = "matrix")
+    # })
      output$downloadlabels <- downloadHandler(
        filename = paste("Barcode labels -",Sys.Date(),".pdf"),
        
@@ -43,12 +39,12 @@ labels_server <- function(env_serv) with(env_serv, local({
           par(mfrow=c(10, 1),mar=c(1,0,1,1), oma=c(1,1,1,1)) # right align mar=c(0,30,3,0)
          
          for(i in 1:(nrow(downloadlabelsIn()))){
-           txtLabel <- noquote(grep(input$barcode_text, names(dt)))
+           txtLabel <- noquote(grep(input$barcode_text, names(banana)))
            image(
-               qrencode_raster(as.character(downloadlabelsIn()[i,"Cross ID"])), # QRcode
+               qrencode_raster(as.character(downloadlabelsIn()[i,"Crossnumber"])), # QRcode
                   cex.main = 1.5, cex.sub = .8, asp=1, col=c("white", "black"), axes=F, 
-                  xlab="", ylab="", subtitle = mtext(paste(as.character(downloadlabelsIn()[i,"Cross ID"]),"\n", 
-                                                           paste(input$barcode_text,":",downloadlabelsIn()[i,input$barcode_text])), side = 4, line = 0,
+                  xlab="", ylab="", subtitle = mtext(paste(as.character(downloadlabelsIn()[i,"Crossnumber"]),"\n", 
+                                                           downloadlabelsIn()[i,..txtLabel]), side = 4, line = 0,
                                                      outer = F, at = NA, adj = 0, padj = 0.5, cex = 1, col = 1, las=1, font = 10)
            )
            
@@ -56,6 +52,6 @@ labels_server <- function(env_serv) with(env_serv, local({
          dev.off()
        }
      )
-})
+
 })
 )
