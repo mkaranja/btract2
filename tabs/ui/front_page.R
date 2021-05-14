@@ -1,36 +1,11 @@
 
-footer <- function() tagList(
-  fluidRow(
-    HTML('<footer align="center">
-         <div class="row">
-         <div class="col-sm-2 col-sm-offset-3">
-         <a href = "http://breedingbetterbananas.org/">
-         <img src = "bbb.png", height="65", width="120">
-         </a>
-         </div>
-         <div class="col-sm-2">
-         <a href = "http://www.iita.org/">
-         <img src = "iita.png", height="65", width="120">
-         </a>
-         </div>
-         <div class="col-sm-2">
-         <a href = "https://btiscience.org/">
-         <img src="bti.png", height="70", width="120">
-         </a>
-         </div>
-         </div>
-         </footer>')
-  )
-)
 
-
-frontpage <- tabPanel("BTracT",
-                      
+frontpage = function() tagList(
   tags$style(".topimg {
-              margin-left:-30px;
-              margin-right:-30px;
-              margin-top:-15px;
-            }"), 
+                            margin-left:-30px;
+                            margin-right:-30px;
+                            margin-top:-15px;
+                          }"), #br(),br(),br(),
   div(class="topimg", img(src="bunch.png", width="100%")
       ),
   fluidRow(
@@ -54,7 +29,7 @@ frontpage <- tabPanel("BTracT",
                    "This webpage may time-out if left idle too long, which will cause the screen to grey-out.",
                    "To use the webpage again, refresh the page. This will reset all previously-selected input options."),
       br(), br(),br(), br(),
-      footer(),
+      BTracTFooter(),
       br()
       )
   )
